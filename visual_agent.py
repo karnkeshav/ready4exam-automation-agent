@@ -179,7 +179,7 @@ class VisualAgent:
         """Upload the PNG to GitHub and return the raw URL."""
         if not self.repo:
             print("GitHub not configured, skipping upload.")
-            return f"mock_url_for_{question_id}"
+            return ""
 
         try:
             # cdn/pyq_snips/{grade}/{subject}/{chapter}/{question_id}.png
