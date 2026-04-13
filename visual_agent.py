@@ -71,49 +71,48 @@ class VisualAgent:
         for source in pdf_sources:
             try:
                 pdf_bytes = self._fetch_pdf(source)
-                doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+                with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
 
-                # Iterate through pages
-                for page_num in range(len(doc)):
-                    page = doc.load_page(page_num)
-                    # Get image of the page
-                    pix = page.get_pixmap(dpi=150) # Moderate DPI for Gemini to process quickly
-                    img_data = pix.tobytes("jpeg")
+                    # Iterate through pages
+                    for page_num in range(len(doc)):
+                        page = doc.load_page(page_num)
+                        # Get image of the page
+                        pix = page.get_pixmap(dpi=150) # Moderate DPI for Gemini to process quickly
+                        img_data = pix.tobytes("jpeg")
 
-                    # AI Vision step
-                    extracted_questions = self._analyze_page_with_gemini(img_data, target_chapter)
+                        # AI Vision step
+                        extracted_questions = self._analyze_page_with_gemini(img_data, target_chapter)
 
-                    if not extracted_questions or not extracted_questions.questions:
-                        continue
+                        if not extracted_questions or not extracted_questions.questions:
+                            continue
 
-                    for q in extracted_questions.questions:
-                        # Automated Snipping
-                        try:
-                            # Map normalized coords to actual PDF coords
-                            rect = self._get_rect_from_normalized(q.bounding_box, page.rect)
+                        for q in extracted_questions.questions:
+                            # Automated Snipping
+                            try:
+                                # Map normalized coords to actual PDF coords
+                                rect = self._get_rect_from_normalized(q.bounding_box, page.rect)
 
-                            # Crop and save as high-res PNG
-                            snip_pix = page.get_pixmap(clip=rect, dpi=300)
-                            snip_bytes = snip_pix.tobytes("png")
+                                # Crop and save as high-res PNG
+                                snip_pix = page.get_pixmap(clip=rect, dpi=300)
+                                snip_bytes = snip_pix.tobytes("png")
 
-                            question_id = str(uuid.uuid4())
+                                question_id = str(uuid.uuid4())
 
-                            # Update exact page number instead of generic (in case we want absolute vs relative)
-                            q.page_number = page_num
+                                # Update exact page number instead of generic (in case we want absolute vs relative)
+                                q.page_number = page_num
 
-                            # Dual-Sync Storage
-                            github_url = self._upload_to_github(snip_bytes, grade, subject, target_chapter, question_id)
+                                # Dual-Sync Storage
+                                github_url = self._upload_to_github(snip_bytes, grade, subject, target_chapter, question_id)
 
-                            if github_url:
-                                self._save_to_firestore(q, chapter_id, year, github_url, question_id)
-                                summary["successful_uploads"] += 1
+                                if github_url:
+                                    self._save_to_firestore(q, chapter_id, year, github_url, question_id)
+                                    summary["successful_uploads"] += 1
 
-                            summary["questions_extracted"] += 1
-                        except Exception as e:
-                            summary["errors"].append(f"Error processing question on page {page_num}: {str(e)}")
+                                summary["questions_extracted"] += 1
+                            except Exception as e:
+                                summary["errors"].append(f"Error processing question on page {page_num}: {str(e)}")
 
-                summary["pdfs_processed"] += 1
-                doc.close()
+                    summary["pdfs_processed"] += 1
             except Exception as e:
                 summary["errors"].append(f"Error processing PDF {source}: {str(e)}")
 
